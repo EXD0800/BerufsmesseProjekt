@@ -4,19 +4,21 @@ namespace BerufsmesseProjekt
 {
     public class Program
     {
-        static void Main(string[] args)
+        public static void Main(string[] args)
         {
             OnStartup();
         }
-        static void OnStartup()
+        public static void OnStartup()
         {
             DataBaseCreatorService.CreateDataBase();
+            Menue();
         }
 
-        public void Menue()
+        public static void Menue()
         {
             string input;
             bool validInput = false;
+            Console.Clear();
 
             do
             {
@@ -33,14 +35,19 @@ namespace BerufsmesseProjekt
                 {
                     case "/n":
                         Console.WriteLine("Paul Temiz, Oliver Schiwek");
+                        Console.WriteLine("Drücken Sie eine Taste um fortzufahren");
+                        Console.ReadKey();
+                        Menue();
                         validInput = true;
                         break;
                     case "/imp":
                         // Importlogik aufrufen
+                        Menue();
                         validInput = true;
                         break;
                     case "/exp":
                         // Exportlogik aufrufen
+                        Menue();
                         validInput = true;
                         break;
                     default:
