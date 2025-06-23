@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace BerufsmesseProjekt.Services
+namespace BerufsmesseProjekt.Services;
+
+public class CsvExportService
 {
-    internal class CsvExportService
-    {
-    }
+
 }

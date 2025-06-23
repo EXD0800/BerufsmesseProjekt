@@ -32,7 +32,7 @@ namespace BerufsmesseProjekt
                 switch (input)
                 {
                     case "/n":
-                        // Gruppennamen ausgeben
+                        Console.WriteLine("Paul Temiz, Oliver Schiwek");
                         validInput = true;
                         break;
                     case "/imp":
