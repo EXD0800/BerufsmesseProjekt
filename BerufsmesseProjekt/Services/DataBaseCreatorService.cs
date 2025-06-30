@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Data.SQLite;
 
 namespace BerufsmesseProjekt.Services;
 
@@ -25,7 +26,7 @@ public static class DataBaseCreatorService
         return File.Exists(Path.Combine(Environment.CurrentDirectory,AppConstants.DataBasePath,"Berufsmesse.db"));
     }
 
-    public static void CreateDataBase()
+    public async static void CreateDataBase()
     {
         if (CheckForDatabase() && IsFileInDirectory())
         {
@@ -33,9 +34,70 @@ public static class DataBaseCreatorService
         }
         else
         {
-            Directory.CreateDirectory(Path.Combine(Environment.CurrentDirectory, AppConstants.DataBasePath));
+            try
+            {
+                Directory.CreateDirectory(Path.Combine(Environment.CurrentDirectory, AppConstants.DataBasePath));
+                string databasePath = Path.Combine(Environment.CurrentDirectory, AppConstants.DataBasePath, "Berufsmesse.db");
+                SQLiteConnection.CreateFile(databasePath);
 
-            //SQLite Datenbank wird erstellt
+                using var connection = new SQLiteConnection($"Data Source={databasePath};Version=3;");
+                connection.Open();
+
+                string createSchuelerTable = @"CREATE TABLE IF NOT EXISTS Schueler(
+                                           Id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                                           Name VARCHAR(255) NOT NULL,
+                                           Nachname VARCHAR(255) NOT NULL,
+                                           id_klasse INTEGER NOT NULL,
+                                           FOREIGN KEY (id_klasse) REFERENCES Klasse(Id)
+                                           )";
+
+                string createFirmaTable = @"CREATE TABLE IF NOT EXISTS Firma(
+                                        Id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                                        Firmenname VARCHAR(255) NOT NULL,
+                                        Branche VARCHAR(255) NOT NULL
+                                        )";
+
+                string createKlasseTable = @"CREATE TABLE IF NOT EXISTS Klasse(
+                                         Id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                                         Klassenname VARCHAR(255) NOT NULL
+                                         )";
+
+                string createSchuelerZuFirmaTable = @"CREATE TABLE IF NOT EXISTS Schueler_zu_Firma(
+                                                  id_firma INTEGER,
+                                                  id_schueler INTEGER,
+                                                  PRIMARY KEY(id_firma,id_schueler),
+                                                  FOREIGN KEY (id_firma) REFERENCES Firma(Id),
+                                                  FOREIGN KEY (id_schueler) REFERENCES Schueler(Id)
+                                                  )";
+
+                var commands = new[] {
+                createSchuelerTable,
+                createFirmaTable,
+                createKlasseTable,
+                createSchuelerZuFirmaTable
+            };
+
+                var tasks = commands.Select(cmd => Task.Run(() =>
+                {
+                    try
+                    {
+                        using var command = new SQLiteCommand(cmd, connection);
+                        command.ExecuteNonQuery();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Fehler beim Ausführen eines SQL-Commands: {ex.Message}");
+                    }
+                }));
+
+                await Task.WhenAll(tasks);
+
+                Console.WriteLine("Tabellen wurden erfolgreich erstellt, Keule!");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Unerwarteter Fehler: {ex.Message}");
+            }
         }
     }
 }
