@@ -10,9 +10,17 @@ namespace BerufsmesseProjekt.Services;
 
 public static class DataBaseCreatorService
 {
-    static readonly string file;
     public static bool CheckForDatabase() //Ausgehend davon, das die Datenbank nicht existiert
-    { 
+    {
+        if (!Directory.Exists(Path.Combine(Environment.CurrentDirectory, AppConstants.PDFImportOrdner)))
+            Directory.CreateDirectory(Path.Combine(Environment.CurrentDirectory, AppConstants.PDFImportOrdner));
+
+        if (!Directory.Exists(Path.Combine(Environment.CurrentDirectory, AppConstants.PDFOutputOrdner)))
+            Directory.CreateDirectory(Path.Combine(Environment.CurrentDirectory, AppConstants.PDFOutputOrdner));
+
+        if (!Directory.Exists(Path.Combine(Environment.CurrentDirectory, AppConstants.CSVOutput)))
+            Directory.CreateDirectory(Path.Combine(Environment.CurrentDirectory, AppConstants.CSVOutput));
+
         if (Directory.Exists(Path.Combine(Environment.CurrentDirectory, AppConstants.DataBasePath)))
         {
             return true;
@@ -23,7 +31,7 @@ public static class DataBaseCreatorService
 
     public static bool IsFileInDirectory()
     {
-        return File.Exists(Path.Combine(Environment.CurrentDirectory,AppConstants.DataBasePath,"Berufsmesse.db"));
+        return File.Exists(Path.Combine(Environment.CurrentDirectory, AppConstants.DataBasePath, "Berufsmesse.db"));
     }
 
     public async static void CreateDataBase()
