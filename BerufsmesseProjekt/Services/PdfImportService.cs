@@ -72,7 +72,7 @@ public class PdfImportService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"⚠️ Fehler beim Verarbeiten von {Path.GetFileName(pdfDatei)}: {ex.Message}");
+                Console.WriteLine($"⚠ Fehler beim Verarbeiten von {Path.GetFileName(pdfDatei)}: {ex.Message}");
             }
         }
         InsertToDatabaseService.InsertPDFToDatabase(pdfExtraction);

@@ -62,6 +62,91 @@ public class InsertToDatabaseService
     }
     public static void InsertPDFToDatabase(List<PdfModel> pdfContent)
     {
+        string connString = AppConstants.SQLConnectionString;
 
+        using (var connection = new SQLiteConnection(connString))
+        {
+            connection.Open();
+
+            
+            const string selectKlasseIdSql = "SELECT Id FROM Klasse WHERE Klassenname = @Klassenname";
+            const string insertKlasseSql = "INSERT INTO Klasse (Klassenname) VALUES (@Klassenname)";
+
+            
+            const string insertSchuelerSql = @"
+            INSERT INTO Schueler (Name, Nachname, id_klasse)
+            VALUES (@Vorname, @Nachname, @KlasseId)";
+
+            
+            const string insertJunctionSql = @"
+            INSERT OR IGNORE INTO Schueler_zu_Firma (id_firma, id_schueler)
+            VALUES (@FirmaId, @SchuelerId)";
+
+            
+            int[] companyIds = new[] {
+            AppConstants.HolzKGId,
+            AppConstants.SicherAGId,
+            AppConstants.TargonId
+        };
+
+            using (var tx = connection.BeginTransaction())
+            {
+                foreach (var pdf in pdfContent)
+                {
+            
+                    int klasseId;
+                    using (var cmd = new SQLiteCommand(selectKlasseIdSql, connection, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@Klassenname", pdf.Klasse);
+                        var result = cmd.ExecuteScalar();
+                        if (result != null)
+                        {
+                            klasseId = Convert.ToInt32(result);
+                        }
+                        else
+                        {
+                            using (var ins = new SQLiteCommand(insertKlasseSql, connection, tx))
+                            {
+                                ins.Parameters.AddWithValue("@Klassenname", pdf.Klasse);
+                                ins.ExecuteNonQuery();
+                            }
+                            using (var getId = new SQLiteCommand("SELECT last_insert_rowid()", connection, tx))
+                            {
+                                klasseId = Convert.ToInt32(getId.ExecuteScalar());
+                            }
+                        }
+                    }
+
+                    
+                    int schuelerId;
+                    using (var cmd = new SQLiteCommand(insertSchuelerSql, connection, tx))
+                    {
+                        cmd.Parameters.AddWithValue("@Vorname", pdf.Vorname);
+                        cmd.Parameters.AddWithValue("@Nachname", pdf.Nachname);
+                        cmd.Parameters.AddWithValue("@KlasseId", klasseId);
+                        cmd.ExecuteNonQuery();
+                    }
+                    using (var getId = new SQLiteCommand("SELECT last_insert_rowid()", connection, tx))
+                    {
+                        schuelerId = Convert.ToInt32(getId.ExecuteScalar());
+                    }
+
+                    for (int i = 0; i < pdf.Firmen.Count && i < companyIds.Length; i++)
+                    {
+                        if (!pdf.Firmen[i])
+                            continue;
+
+                        using (var cmd = new SQLiteCommand(insertJunctionSql, connection, tx))
+                        {
+                            cmd.Parameters.AddWithValue("@FirmaId", companyIds[i]);
+                            cmd.Parameters.AddWithValue("@SchuelerId", schuelerId);
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                }
+
+                tx.Commit();
+            }
+        }
     }
 }
