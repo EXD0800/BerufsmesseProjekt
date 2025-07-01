@@ -23,32 +23,34 @@ public class PdfImportService
         string ordnerPfad = Path.Combine(Environment.CurrentDirectory, AppConstants.PDFImportOrdner);
         string zielOrdner = Path.Combine(ordnerPfad, "Verarbeitet");
 
-        if (!Directory.Exists(zielOrdner))
-        {
-            Directory.CreateDirectory(zielOrdner);
-        }
+        Directory.CreateDirectory(zielOrdner);
 
-        List<PdfModel> pdfExtraction = new List<PdfModel>();
+        var pdfExtraction = new List<PdfModel>();
 
         foreach (string pdfDatei in Directory.GetFiles(ordnerPfad, "*.pdf"))
         {
             Console.WriteLine($"\n--- {Path.GetFileName(pdfDatei)} ---");
 
+            bool valid = true;
+            string vorname = null, nachname = null, klasse = null;
+            bool cbTargon = false, cbSicher = false, cbHolz = false;
+
             try
             {
-                using (PdfReader reader = new PdfReader(pdfDatei))
-                using (PdfDocument pdf = new PdfDocument(reader))
+                // PDF auslesen
+                using (var reader = new PdfReader(pdfDatei))
+                using (var pdf = new PdfDocument(reader))
                 {
-                    PdfAcroForm formular = PdfAcroForm.GetAcroForm(pdf, true);
-                    IDictionary<string, PdfFormField> felder = formular.GetAllFormFields();
+                    var formular = PdfAcroForm.GetAcroForm(pdf, true);
+                    var felder = formular.GetAllFormFields();
 
-                    string vorname = GetFeldwert(felder, "Vorname");
-                    string nachname = GetFeldwert(felder, "Nachname");
-                    string klasse = GetFeldwert(felder, "Klasse");
+                    vorname = GetFeldwert(felder, "Vorname");
+                    nachname = GetFeldwert(felder, "Nachname");
+                    klasse = GetFeldwert(felder, "Klasse");
 
-                    bool cbTargon = IstCheckboxGecheckt(felder, "cbTargon");
-                    bool cbSicher = IstCheckboxGecheckt(felder, "cbSicher");
-                    bool cbHolz = IstCheckboxGecheckt(felder, "cbHolz");
+                    cbTargon = IstCheckboxGecheckt(felder, "cbTargon");
+                    cbSicher = IstCheckboxGecheckt(felder, "cbSicher");
+                    cbHolz = IstCheckboxGecheckt(felder, "cbHolz");
 
                     Console.WriteLine($"Vorname: {vorname}");
                     Console.WriteLine($"Nachname: {nachname}");
@@ -56,7 +58,31 @@ public class PdfImportService
                     Console.WriteLine($"Targon: {(cbTargon ? "Ja" : "Nein")}");
                     Console.WriteLine($"Sicher AG: {(cbSicher ? "Ja" : "Nein")}");
                     Console.WriteLine($"Holz AG: {(cbHolz ? "Ja" : "Nein")}");
+                }
 
+                // 1) Pflichtfelder prüfen
+                if (string.IsNullOrWhiteSpace(vorname) ||
+                    string.IsNullOrWhiteSpace(nachname) ||
+                    string.IsNullOrWhiteSpace(klasse) ||
+                   !(cbTargon || cbSicher || cbHolz))
+                {
+                    Console.WriteLine("⚠ Ungültiger Datensatz: alle Felder müssen gefüllt sein und mindestens eine Firma ausgewählt.");
+                    valid = false;
+                }
+
+                // 2) Doppeltes verhindern
+                if (valid && pdfExtraction.Any(p =>
+                       p.Vorname.Equals(vorname, StringComparison.OrdinalIgnoreCase) &&
+                       p.Nachname.Equals(nachname, StringComparison.OrdinalIgnoreCase) &&
+                       p.Klasse.Equals(klasse, StringComparison.OrdinalIgnoreCase)))
+                {
+                    Console.WriteLine("⚠ Doppelter Eintrag erkannt – wird übersprungen.");
+                    valid = false;
+                }
+
+                // 3) Nur valid in Liste aufnehmen und PDF verschieben
+                if (valid)
+                {
                     pdfExtraction.Add(new PdfModel
                     {
                         Vorname = vorname,
@@ -64,30 +90,36 @@ public class PdfImportService
                         Klasse = klasse,
                         Firmen = new List<bool> { cbTargon, cbSicher, cbHolz }
                     });
-                }
 
-                string zielDatei = Path.Combine(AppConstants.PDFOutputOrdner, Path.GetFileName(pdfDatei));
-                File.Move(pdfDatei, zielDatei);
-                Console.WriteLine("→ PDF wurde verschoben nach 'PDF_OUTPUT'");
+                    string zielDatei = Path.Combine(zielOrdner, Path.GetFileName(pdfDatei));
+                    File.Move(pdfDatei, zielDatei);
+                    Console.WriteLine("→ PDF wurde verschoben nach 'Verarbeitet'.");
+                }
+                else
+                {
+                    Console.WriteLine("→ PDF bleibt im Import-Ordner.");
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"⚠ Fehler beim Verarbeiten von {Path.GetFileName(pdfDatei)}: {ex.Message}");
+                Console.WriteLine($"⚠ Fehler beim Auslesen: {ex.Message}");
+                Console.WriteLine("→ PDF bleibt im Import-Ordner.");
             }
         }
+
+        // Nach Durchlauf alle validen Einträge in die DB schreiben
         InsertToDatabaseService.InsertPDFToDatabase(pdfExtraction);
     }
 
     static string GetFeldwert(IDictionary<string, PdfFormField> felder, string name)
-    {
-        return felder.ContainsKey(name) ? felder[name].GetValueAsString() : "[nicht vorhanden]";
-    }
+        => felder.ContainsKey(name)
+           ? felder[name].GetValueAsString().Trim()
+           : string.Empty;
 
     static bool IstCheckboxGecheckt(IDictionary<string, PdfFormField> felder, string name)
-    {
-        if (!felder.ContainsKey(name)) return false;
-
-        string wert = felder[name].GetValueAsString();
-        return wert == "Yes" || wert == "On" || wert == "1" || wert.Equals("true", StringComparison.OrdinalIgnoreCase);
-    }
+        => felder.TryGetValue(name, out var f)
+           && (f.GetValueAsString() == "Yes"
+            || f.GetValueAsString() == "On"
+            || f.GetValueAsString() == "1"
+            || f.GetValueAsString().Equals("true", StringComparison.OrdinalIgnoreCase));
 }
