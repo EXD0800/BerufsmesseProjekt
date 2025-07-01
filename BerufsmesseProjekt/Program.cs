@@ -1,4 +1,5 @@
-﻿using BerufsmesseProjekt.Services;
+﻿using BerufsmesseProjekt.Models;
+using BerufsmesseProjekt.Services;
 
 namespace BerufsmesseProjekt
 {
@@ -11,7 +12,16 @@ namespace BerufsmesseProjekt
         public static void OnStartup()
         {
             DataBaseCreatorService.CreateDataBase();
+            InsertToDatabaseService.InsertFirmen(Firmen());
             Menue();
+        }
+
+        public static List<FirmenModel> Firmen()
+        {
+            return new List<FirmenModel>{
+                   new FirmenModel { Firmenname = "Holz KG", Branche = "Bau"},
+                   new FirmenModel { Firmenname = "Sicher AG", Branche = "Versicherung"},
+                   new FirmenModel { Firmenname = "Targon", Branche = "Bank"}};
         }
 
         public static void Menue()

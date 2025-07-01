@@ -48,7 +48,8 @@ public static class DataBaseCreatorService
                 string databasePath = Path.Combine(Environment.CurrentDirectory, AppConstants.DataBasePath, "Berufsmesse.db");
                 SQLiteConnection.CreateFile(databasePath);
 
-                using var connection = new SQLiteConnection($"Data Source={databasePath};Version=3;");
+                using SQLiteConnection connection = new SQLiteConnection($"Data Source={databasePath};Version=3;");
+                AppConstants.SQLConnectionString  = connection.ConnectionString;
                 connection.Open();
 
                 string createSchuelerTable = @"CREATE TABLE IF NOT EXISTS Schueler(

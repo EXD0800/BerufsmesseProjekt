@@ -9,6 +9,5 @@ namespace BerufsmesseProjekt.Models;
 public class FirmenModel
 {
     public string Firmenname { get; set; }
-    public string Ausbildungsberuf { get; set; }
     public string Branche { get; set; }
 }

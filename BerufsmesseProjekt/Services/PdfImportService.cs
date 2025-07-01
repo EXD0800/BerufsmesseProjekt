@@ -75,6 +75,7 @@ public class PdfImportService
                 Console.WriteLine($"⚠️ Fehler beim Verarbeiten von {Path.GetFileName(pdfDatei)}: {ex.Message}");
             }
         }
+        InsertToDatabaseService.InsertPDFToDatabase(pdfExtraction);
     }
 
     static string GetFeldwert(IDictionary<string, PdfFormField> felder, string name)
