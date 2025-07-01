@@ -56,7 +56,7 @@ namespace BerufsmesseProjekt
                         validInput = true;
                         break;
                     case "/exp":
-                        // Exportlogik aufrufen
+                        CsvExportService.ExportAsCSV();
                         Menue();
                         validInput = true;
                         break;

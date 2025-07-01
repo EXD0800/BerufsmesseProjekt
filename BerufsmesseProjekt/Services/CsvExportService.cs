@@ -70,5 +70,6 @@ public class CsvExportService
                 }
             }
         }
+        Console.WriteLine("Teilnahmeliste_HolzKG.csv erfolgreich erstellt\r\nTeilnahmeliste_SicherAG.csv erfolgreich erstellt\r\nTeilnahmeliste_Targon.csv erfolgreich erstellt");
     }
 }
