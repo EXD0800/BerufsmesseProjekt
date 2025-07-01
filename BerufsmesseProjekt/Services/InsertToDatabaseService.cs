@@ -64,7 +64,7 @@ public class InsertToDatabaseService
     {
         string connString = AppConstants.SQLConnectionString;
 
-        using (var connection = new SQLiteConnection(connString))
+        using (SQLiteConnection connection = new SQLiteConnection(connString))
         {
             connection.Open();
 
@@ -89,28 +89,28 @@ public class InsertToDatabaseService
             AppConstants.TargonId
         };
 
-            using (var tx = connection.BeginTransaction())
+            using (SQLiteTransaction tx = connection.BeginTransaction())
             {
-                foreach (var pdf in pdfContent)
+                foreach (PdfModel pdf in pdfContent)
                 {
             
                     int klasseId;
-                    using (var cmd = new SQLiteCommand(selectKlasseIdSql, connection, tx))
+                    using (SQLiteCommand cmd = new SQLiteCommand(selectKlasseIdSql, connection, tx))
                     {
                         cmd.Parameters.AddWithValue("@Klassenname", pdf.Klasse);
-                        var result = cmd.ExecuteScalar();
+                        object result = cmd.ExecuteScalar();
                         if (result != null)
                         {
                             klasseId = Convert.ToInt32(result);
                         }
                         else
                         {
-                            using (var ins = new SQLiteCommand(insertKlasseSql, connection, tx))
+                            using (SQLiteCommand ins = new SQLiteCommand(insertKlasseSql, connection, tx))
                             {
                                 ins.Parameters.AddWithValue("@Klassenname", pdf.Klasse);
                                 ins.ExecuteNonQuery();
                             }
-                            using (var getId = new SQLiteCommand("SELECT last_insert_rowid()", connection, tx))
+                            using (SQLiteCommand getId = new SQLiteCommand("SELECT last_insert_rowid()", connection, tx))
                             {
                                 klasseId = Convert.ToInt32(getId.ExecuteScalar());
                             }
@@ -119,14 +119,14 @@ public class InsertToDatabaseService
 
                     
                     int schuelerId;
-                    using (var cmd = new SQLiteCommand(insertSchuelerSql, connection, tx))
+                    using (SQLiteCommand cmd = new SQLiteCommand(insertSchuelerSql, connection, tx))
                     {
                         cmd.Parameters.AddWithValue("@Vorname", pdf.Vorname);
                         cmd.Parameters.AddWithValue("@Nachname", pdf.Nachname);
                         cmd.Parameters.AddWithValue("@KlasseId", klasseId);
                         cmd.ExecuteNonQuery();
                     }
-                    using (var getId = new SQLiteCommand("SELECT last_insert_rowid()", connection, tx))
+                    using (SQLiteCommand getId = new SQLiteCommand("SELECT last_insert_rowid()", connection, tx))
                     {
                         schuelerId = Convert.ToInt32(getId.ExecuteScalar());
                     }
@@ -136,7 +136,7 @@ public class InsertToDatabaseService
                         if (!pdf.Firmen[i])
                             continue;
 
-                        using (var cmd = new SQLiteCommand(insertJunctionSql, connection, tx))
+                        using (SQLiteCommand cmd = new SQLiteCommand(insertJunctionSql, connection, tx))
                         {
                             cmd.Parameters.AddWithValue("@FirmaId", companyIds[i]);
                             cmd.Parameters.AddWithValue("@SchuelerId", schuelerId);
