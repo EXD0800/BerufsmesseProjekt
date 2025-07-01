@@ -51,7 +51,7 @@ namespace BerufsmesseProjekt
                         validInput = true;
                         break;
                     case "/imp":
-                        // Importlogik aufrufen
+                        PdfImportService.Import();
                         Menue();
                         validInput = true;
                         break;

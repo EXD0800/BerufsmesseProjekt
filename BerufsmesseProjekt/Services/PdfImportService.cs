@@ -14,7 +14,7 @@ namespace BerufsmesseProjekt.Services;
 
 public class PdfImportService
 {
-    public void Import()
+    public static void Import()
     {
         Console.WriteLine("Bitte legen Sie alle PDFs in den Ordner: PDF_IMPORT");
         Console.WriteLine("Wenn Sie damit fertig sind, drücken Sie eine Taste!");
