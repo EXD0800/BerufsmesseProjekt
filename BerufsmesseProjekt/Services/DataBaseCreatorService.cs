@@ -10,103 +10,85 @@ namespace BerufsmesseProjekt.Services;
 
 public static class DataBaseCreatorService
 {
-    public static bool CheckForDatabase() //Ausgehend davon, das die Datenbank nicht existiert
+    // Basis-Pfade
+    private static readonly string BaseDir = Environment.CurrentDirectory;
+    private static readonly string DbFolder = Path.Combine(BaseDir, AppConstants.DataBasePath);
+    private static readonly string DbFilePath = Path.Combine(DbFolder, "Berufsmesse.db");
+    private static readonly string ConnString = $"Data Source={DbFilePath};Version=3;";
+
+    /// <summary>
+    /// Stellt sicher, dass Verzeichnisse bestehen, und legt bei Bedarf die Datenbank samt Tabellen an.
+    /// </summary>
+    public static void CreateDatabase()
     {
-        if (!Directory.Exists(Path.Combine(Environment.CurrentDirectory, AppConstants.PDFImportOrdner)))
-            Directory.CreateDirectory(Path.Combine(Environment.CurrentDirectory, AppConstants.PDFImportOrdner));
+        // 1) Verzeichnisse anlegen
+        EnsureDirectory(AppConstants.PDFImportOrdner);
+        EnsureDirectory(AppConstants.PDFOutputOrdner);
+        EnsureDirectory(AppConstants.CSVOutput);
+        EnsureDirectory(AppConstants.DataBasePath);
 
-        if (!Directory.Exists(Path.Combine(Environment.CurrentDirectory, AppConstants.PDFOutputOrdner)))
-            Directory.CreateDirectory(Path.Combine(Environment.CurrentDirectory, AppConstants.PDFOutputOrdner));
-
-        if (!Directory.Exists(Path.Combine(Environment.CurrentDirectory, AppConstants.CSVOutput)))
-            Directory.CreateDirectory(Path.Combine(Environment.CurrentDirectory, AppConstants.CSVOutput));
-
-        if (Directory.Exists(Path.Combine(Environment.CurrentDirectory, AppConstants.DataBasePath)))
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    public static bool IsFileInDirectory()
-    {
-        return File.Exists(Path.Combine(Environment.CurrentDirectory, AppConstants.DataBasePath, "Berufsmesse.db"));
-    }
-
-    public async static void CreateDataBase()
-    {
-        if (CheckForDatabase() && IsFileInDirectory())
-        {
+        // 2) Wenn DB-Datei schon existiert, beenden
+        if (File.Exists(DbFilePath))
             return;
-        }
-        else
-        {
-            try
-            {
-                Directory.CreateDirectory(Path.Combine(Environment.CurrentDirectory, AppConstants.DataBasePath));
-                string databasePath = Path.Combine(Environment.CurrentDirectory, AppConstants.DataBasePath, "Berufsmesse.db");
-                SQLiteConnection.CreateFile(databasePath);
 
-                using SQLiteConnection connection = new SQLiteConnection($"Data Source={databasePath};Version=3;");
-                AppConstants.SQLConnectionString  = connection.ConnectionString;
-                connection.Open();
+        // 3) Neue Datenbankdatei + Verbindung
+        SQLiteConnection.CreateFile(DbFilePath);
+        using var connection = new SQLiteConnection(ConnString);
+        connection.Open();
 
-                string createSchuelerTable = @"CREATE TABLE IF NOT EXISTS Schueler(
-                                           Id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                                           Name VARCHAR(255) NOT NULL,
-                                           Nachname VARCHAR(255) NOT NULL,
-                                           id_klasse INTEGER NOT NULL,
-                                           FOREIGN KEY (id_klasse) REFERENCES Klasse(Id)
-                                           )";
+        // 4) SQL-Statements nacheinander ausführen
+        ExecuteSql(connection, "PRAGMA foreign_keys = ON;");
 
-                string createFirmaTable = @"CREATE TABLE IF NOT EXISTS Firma(
-                                        Id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                                        Firmenname VARCHAR(255) NOT NULL,
-                                        Branche VARCHAR(255) NOT NULL
-                                        )";
+        ExecuteSql(connection, @"
+                CREATE TABLE IF NOT EXISTS Klasse (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Klassenname TEXT NOT NULL
+                );");
 
-                string createKlasseTable = @"CREATE TABLE IF NOT EXISTS Klasse(
-                                         Id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                                         Klassenname VARCHAR(255) NOT NULL
-                                         )";
+        ExecuteSql(connection, @"
+                CREATE TABLE IF NOT EXISTS Firma (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Firmenname TEXT NOT NULL,
+                    Branche TEXT NOT NULL
+                );");
 
-                string createSchuelerZuFirmaTable = @"CREATE TABLE IF NOT EXISTS Schueler_zu_Firma(
-                                                  id_firma INTEGER,
-                                                  id_schueler INTEGER,
-                                                  PRIMARY KEY(id_firma,id_schueler),
-                                                  FOREIGN KEY (id_firma) REFERENCES Firma(Id),
-                                                  FOREIGN KEY (id_schueler) REFERENCES Schueler(Id)
-                                                  )";
+        ExecuteSql(connection, @"
+                CREATE TABLE IF NOT EXISTS Schueler (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Name TEXT NOT NULL,
+                    Nachname TEXT NOT NULL,
+                    id_klasse INTEGER NOT NULL,
+                    FOREIGN KEY(id_klasse) REFERENCES Klasse(Id)
+                );");
 
-                var commands = new[] {
-                createSchuelerTable,
-                createFirmaTable,
-                createKlasseTable,
-                createSchuelerZuFirmaTable
-            };
+        ExecuteSql(connection, @"
+                CREATE TABLE IF NOT EXISTS Schueler_zu_Firma (
+                    id_firma INTEGER NOT NULL,
+                    id_schueler INTEGER NOT NULL,
+                    PRIMARY KEY(id_firma, id_schueler),
+                    FOREIGN KEY(id_firma)   REFERENCES Firma(Id),
+                    FOREIGN KEY(id_schueler) REFERENCES Schueler(Id)
+                );");
 
-                var tasks = commands.Select(cmd => Task.Run(() =>
-                {
-                    try
-                    {
-                        using var command = new SQLiteCommand(cmd, connection);
-                        command.ExecuteNonQuery();
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Fehler beim Ausführen eines SQL-Commands: {ex.Message}");
-                    }
-                }));
+        Console.WriteLine("Datenbank und Tabellen erfolgreich erstellt.");
+    }
 
-                await Task.WhenAll(tasks);
+    /// <summary>
+    /// Führt ein einzelnes SQL-Statement aus.
+    /// </summary>
+    private static void ExecuteSql(SQLiteConnection connection, string sql)
+    {
+        using var cmd = new SQLiteCommand(sql, connection);
+        cmd.ExecuteNonQuery();
+    }
 
-                Console.WriteLine("Tabellen wurden erfolgreich erstellt, Keule!");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Unerwarteter Fehler: {ex.Message}");
-            }
-        }
+    /// <summary>
+    /// Legt ein Verzeichnis an, falls es noch nicht existiert.
+    /// </summary>
+    private static void EnsureDirectory(string relativePath)
+    {
+        var fullPath = Path.Combine(BaseDir, relativePath);
+        if (!Directory.Exists(fullPath))
+            Directory.CreateDirectory(fullPath);
     }
 }

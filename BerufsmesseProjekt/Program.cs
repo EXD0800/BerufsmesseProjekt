@@ -11,7 +11,7 @@ namespace BerufsmesseProjekt
         }
         public static void OnStartup()
         {
-            DataBaseCreatorService.CreateDataBase();
+            DataBaseCreatorService.CreateDatabase();
             InsertToDatabaseService.InsertFirmen(Firmen());
             Menue();
         }
