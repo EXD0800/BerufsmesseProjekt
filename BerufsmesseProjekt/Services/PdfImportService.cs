@@ -118,7 +118,7 @@ public class PdfImportService
 
     static bool IstCheckboxGecheckt(IDictionary<string, PdfFormField> felder, string name)
         => felder.TryGetValue(name, out var f)
-           && (f.GetValueAsString() == "Yes"
+           && (f.GetValueAsString() == "ja"
             || f.GetValueAsString() == "On"
             || f.GetValueAsString() == "1"
             || f.GetValueAsString().Equals("true", StringComparison.OrdinalIgnoreCase));
