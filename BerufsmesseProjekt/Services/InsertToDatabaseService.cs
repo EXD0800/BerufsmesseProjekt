@@ -19,35 +19,47 @@ public class InsertToDatabaseService
     {
         string connectionString = ConnString;
         AppConstants.SQLConnectionString = ConnString;
+
         using var connection = new SQLiteConnection(connectionString);
         connection.Open();
 
         const string insertQuery = @"
-                INSERT INTO Firma (Firmenname, Branche)
-                VALUES (@Firmenname, @Branche)";
-        const string selectLastId = "SELECT last_insert_rowid()";
+        INSERT OR IGNORE INTO Firma (Firmenname, Branche)
+        VALUES (@Firmenname, @Branche)";
+        const string selectByName = "SELECT Id FROM Firma WHERE Firmenname = @Firmenname";
+
+        var idSetMapping = new Dictionary<string, Action<int>>(StringComparer.OrdinalIgnoreCase)
+    {
+        { "Holz KG",   id => AppConstants.HolzKGId   = id },
+        { "Sicher AG", id => AppConstants.SicherAGId = id },
+        { "Targon",    id => AppConstants.TargonId   = id }
+    };
 
         using var tx = connection.BeginTransaction();
+
         foreach (var firma in firmenListe)
         {
-            using var cmd = new SQLiteCommand(insertQuery, connection, tx);
-            cmd.Parameters.AddWithValue("@Firmenname", firma.Firmenname);
-            cmd.Parameters.AddWithValue("@Branche", firma.Branche);
-            cmd.ExecuteNonQuery();
-
-            using var getId = new SQLiteCommand(selectLastId, connection, tx);
-            int id = Convert.ToInt32(getId.ExecuteScalar());
-
-            switch (firma.Firmenname)
+            // Versuchen zu inserten (wird ignoriert, wenn Firma bereits existiert)
+            using (var insertCmd = new SQLiteCommand(insertQuery, connection, tx))
             {
-                case "Holz KG" when AppConstants.HolzKGId == 0:
-                    AppConstants.HolzKGId = id; break;
-                case "Sicher AG" when AppConstants.SicherAGId == 0:
-                    AppConstants.SicherAGId = id; break;
-                case "Targon" when AppConstants.TargonId == 0:
-                    AppConstants.TargonId = id; break;
+                insertCmd.Parameters.AddWithValue("@Firmenname", firma.Firmenname);
+                insertCmd.Parameters.AddWithValue("@Branche", firma.Branche);
+                insertCmd.ExecuteNonQuery();
             }
+
+            // Danach immer die ID holen – egal ob neu oder schon da
+            int id;
+            using (var selectCmd = new SQLiteCommand(selectByName, connection, tx))
+            {
+                selectCmd.Parameters.AddWithValue("@Firmenname", firma.Firmenname);
+                var result = selectCmd.ExecuteScalar();
+                id = result != null ? Convert.ToInt32(result) : throw new Exception($"Firma-ID für '{firma.Firmenname}' konnte nicht ermittelt werden.");
+            }
+
+            if (idSetMapping.TryGetValue(firma.Firmenname, out var setAction))
+                setAction(id);
         }
+
         tx.Commit();
     }
 
@@ -59,40 +71,39 @@ public class InsertToDatabaseService
         const string selKlasse = "SELECT Id FROM Klasse WHERE Klassenname = @Klassenname";
         const string insKlasse = "INSERT INTO Klasse (Klassenname) VALUES (@Klassenname)";
         const string insSchueler = @"
-                INSERT INTO Schueler (Name, Nachname, id_klasse)
-                VALUES (@Vorname, @Nachname, @KlasseId)";
+        INSERT INTO Schueler (Name, Nachname, id_klasse)
+        VALUES (@Vorname, @Nachname, @KlasseId)";
+        const string selLastId = "SELECT last_insert_rowid()";
         const string insJunct = @"
-                INSERT OR IGNORE INTO Schueler_zu_Firma (id_firma, id_schueler)
-                VALUES (@FirmaId, @SchuelerId)";
-
-        int[] companyIds = {
-                AppConstants.HolzKGId,
-                AppConstants.SicherAGId,
-                AppConstants.TargonId
-            };
+        INSERT OR IGNORE INTO Schueler_zu_Firma (id_firma, id_schueler)
+        VALUES (@FirmaId, @SchuelerId)";
 
         using var tx = connection.BeginTransaction();
+
         foreach (var pdf in pdfContent)
         {
-            // Klasse holen oder anlegen
+            // 🏫 Klasse holen oder neu anlegen
             int klasseId;
             using (var cmd = new SQLiteCommand(selKlasse, connection, tx))
             {
                 cmd.Parameters.AddWithValue("@Klassenname", pdf.Klasse);
                 var result = cmd.ExecuteScalar();
                 if (result != null)
+                {
                     klasseId = Convert.ToInt32(result);
+                }
                 else
                 {
                     using var ins = new SQLiteCommand(insKlasse, connection, tx);
                     ins.Parameters.AddWithValue("@Klassenname", pdf.Klasse);
                     ins.ExecuteNonQuery();
-                    using var getId = new SQLiteCommand("SELECT last_insert_rowid()", connection, tx);
+
+                    using var getId = new SQLiteCommand(selLastId, connection, tx);
                     klasseId = Convert.ToInt32(getId.ExecuteScalar());
                 }
             }
 
-            // Schüler anlegen
+            // 👤 Schüler einfügen
             int schuelerId;
             using (var cmd = new SQLiteCommand(insSchueler, connection, tx))
             {
@@ -101,19 +112,19 @@ public class InsertToDatabaseService
                 cmd.Parameters.AddWithValue("@KlasseId", klasseId);
                 cmd.ExecuteNonQuery();
             }
-            using var getSchId = new SQLiteCommand("SELECT last_insert_rowid()", connection, tx);
+            using var getSchId = new SQLiteCommand(selLastId, connection, tx);
             schuelerId = Convert.ToInt32(getSchId.ExecuteScalar());
 
-            // Junction-Tabelle
-            for (int i = 0; i < pdf.Firmen.Count && i < companyIds.Length; i++)
+            // 🔗 Beziehungen zu Firmen einfügen (direkt mit IDs)
+            foreach (var firmaId in pdf.Firmen.Distinct())
             {
-                if (!pdf.Firmen[i]) continue;
                 using var cmd = new SQLiteCommand(insJunct, connection, tx);
-                cmd.Parameters.AddWithValue("@FirmaId", companyIds[i]);
+                cmd.Parameters.AddWithValue("@FirmaId", firmaId);
                 cmd.Parameters.AddWithValue("@SchuelerId", schuelerId);
                 cmd.ExecuteNonQuery();
             }
         }
+
         tx.Commit();
     }
 }

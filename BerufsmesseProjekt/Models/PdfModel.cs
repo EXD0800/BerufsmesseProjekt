@@ -11,6 +11,6 @@ namespace BerufsmesseProjekt.Models
         public string Vorname { get; set; }
         public string Nachname { get; set; }
         public string Klasse { get; set; }
-        public List<bool> Firmen { get; set; }
+        public List<int> Firmen { get; set; }
     }
 }

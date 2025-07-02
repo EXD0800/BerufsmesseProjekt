@@ -33,11 +33,10 @@ public class PdfImportService
 
             bool valid = true;
             string vorname = null, nachname = null, klasse = null;
-            bool cbTargon = false, cbSicher = false, cbHolz = false;
+            List<int> gewaehlteFirmen = new();
 
             try
             {
-                // PDF auslesen
                 using (var reader = new PdfReader(pdfDatei))
                 using (var pdf = new PdfDocument(reader))
                 {
@@ -48,29 +47,30 @@ public class PdfImportService
                     nachname = GetFeldwert(felder, "Nachname");
                     klasse = GetFeldwert(felder, "Klasse");
 
-                    cbTargon = IstCheckboxGecheckt(felder, "cbTargon");
-                    cbSicher = IstCheckboxGecheckt(felder, "cbSicher");
-                    cbHolz = IstCheckboxGecheckt(felder, "cbHolz");
+                    if (IstCheckboxGecheckt(felder, "cbTargon"))
+                        gewaehlteFirmen.Add(AppConstants.TargonId);
+                    if (IstCheckboxGecheckt(felder, "cbSicher"))
+                        gewaehlteFirmen.Add(AppConstants.SicherAGId);
+                    if (IstCheckboxGecheckt(felder, "cbHolz"))
+                        gewaehlteFirmen.Add(AppConstants.HolzKGId);
 
                     Console.WriteLine($"Vorname: {vorname}");
                     Console.WriteLine($"Nachname: {nachname}");
                     Console.WriteLine($"Klasse: {klasse}");
-                    Console.WriteLine($"Targon: {(cbTargon ? "Ja" : "Nein")}");
-                    Console.WriteLine($"Sicher AG: {(cbSicher ? "Ja" : "Nein")}");
-                    Console.WriteLine($"Holz AG: {(cbHolz ? "Ja" : "Nein")}");
+                    Console.WriteLine($"Ausgewählte Firmen: {string.Join(", ", gewaehlteFirmen)}");
                 }
 
-                // 1) Pflichtfelder prüfen
+                // Pflichtfelder prüfen
                 if (string.IsNullOrWhiteSpace(vorname) ||
                     string.IsNullOrWhiteSpace(nachname) ||
                     string.IsNullOrWhiteSpace(klasse) ||
-                   !(cbTargon || cbSicher || cbHolz))
+                    gewaehlteFirmen.Count == 0)
                 {
-                    Console.WriteLine("⚠ Ungültiger Datensatz: alle Felder müssen gefüllt sein und mindestens eine Firma ausgewählt.");
+                    Console.WriteLine("⚠ Ungültiger Datensatz: Alle Felder müssen gefüllt sein und mindestens eine Firma ausgewählt.");
                     valid = false;
                 }
 
-                // 2) Doppeltes verhindern
+                // Doppelte Einträge verhindern
                 if (valid && pdfExtraction.Any(p =>
                        p.Vorname.Equals(vorname, StringComparison.OrdinalIgnoreCase) &&
                        p.Nachname.Equals(nachname, StringComparison.OrdinalIgnoreCase) &&
@@ -80,7 +80,7 @@ public class PdfImportService
                     valid = false;
                 }
 
-                // 3) Nur valid in Liste aufnehmen und PDF verschieben
+                // In Liste aufnehmen und PDF verschieben
                 if (valid)
                 {
                     pdfExtraction.Add(new PdfModel
@@ -88,7 +88,7 @@ public class PdfImportService
                         Vorname = vorname,
                         Nachname = nachname,
                         Klasse = klasse,
-                        Firmen = new List<bool> { cbTargon, cbSicher, cbHolz }
+                        Firmen = gewaehlteFirmen
                     });
 
                     string zielDatei = Path.Combine(zielOrdner, Path.GetFileName(pdfDatei));
@@ -107,13 +107,13 @@ public class PdfImportService
             }
         }
 
-        // Nach Durchlauf alle validen Einträge in die DB schreiben
+        // Übergabe an DB-Service
         InsertToDatabaseService.InsertPDFToDatabase(pdfExtraction);
     }
 
     static string GetFeldwert(IDictionary<string, PdfFormField> felder, string name)
-        => felder.ContainsKey(name)
-           ? felder[name].GetValueAsString().Trim()
+        => felder.TryGetValue(name, out var f)
+           ? f.GetValueAsString().Trim()
            : string.Empty;
 
     static bool IstCheckboxGecheckt(IDictionary<string, PdfFormField> felder, string name)
