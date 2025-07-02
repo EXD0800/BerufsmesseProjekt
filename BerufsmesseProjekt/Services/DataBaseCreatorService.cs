@@ -25,7 +25,7 @@ public static class DataBaseCreatorService
         EnsureDirectory(AppConstants.PDFImportOrdner);
         EnsureDirectory(AppConstants.CSVOutput);
         EnsureDirectory(AppConstants.DataBasePath);
-
+        AppConstants.SQLConnectionString = $"Data Source={DbFilePath};Version=3;";
         // 2) Wenn DB-Datei schon existiert, beenden
         if (File.Exists(DbFilePath))
             return;
