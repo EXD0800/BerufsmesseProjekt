@@ -19,9 +19,6 @@ public class InsertToDatabaseService
     {
         string connectionString = ConnString;
         AppConstants.SQLConnectionString = ConnString;
-        if (string.IsNullOrWhiteSpace(connectionString))
-            throw new InvalidOperationException("ConnectionString ist nicht gesetzt. CreateDatabase() zuerst aufrufen.");
-
         using var connection = new SQLiteConnection(connectionString);
         connection.Open();
 
