@@ -26,6 +26,7 @@ public class PdfImportService
         Directory.CreateDirectory(zielOrdner);
 
         var pdfExtraction = new List<PdfModel>();
+        int importCount = 0;
 
         foreach (string pdfDatei in Directory.GetFiles(ordnerPfad, "*.pdf"))
         {
@@ -37,78 +38,74 @@ public class PdfImportService
 
             try
             {
-                using (var reader = new PdfReader(pdfDatei))
-                using (var pdf = new PdfDocument(reader))
-                {
-                    var formular = PdfAcroForm.GetAcroForm(pdf, true);
-                    var felder = formular.GetAllFormFields();
+                using var reader = new PdfReader(pdfDatei);
+                using var pdf = new PdfDocument(reader);
 
-                    vorname = GetFeldwert(felder, "Vorname");
-                    nachname = GetFeldwert(felder, "Nachname");
-                    klasse = GetFeldwert(felder, "Klasse");
+                var formular = PdfAcroForm.GetAcroForm(pdf, true);
+                var felder = formular.GetAllFormFields();
 
-                    if (IstCheckboxGecheckt(felder, "cbTargon"))
-                        gewaehlteFirmen.Add(AppConstants.TargonId);
-                    if (IstCheckboxGecheckt(felder, "cbSicher"))
-                        gewaehlteFirmen.Add(AppConstants.SicherAGId);
-                    if (IstCheckboxGecheckt(felder, "cbHolz"))
-                        gewaehlteFirmen.Add(AppConstants.HolzKGId);
+                vorname = GetFeldwert(felder, "Vorname");
+                nachname = GetFeldwert(felder, "Nachname");
+                klasse = GetFeldwert(felder, "Klasse");
 
-                    Console.WriteLine($"Vorname: {vorname}");
-                    Console.WriteLine($"Nachname: {nachname}");
-                    Console.WriteLine($"Klasse: {klasse}");
-                    Console.WriteLine($"Ausgewählte Firmen: {string.Join(", ", gewaehlteFirmen)}");
-                }
-
-                // Pflichtfelder prüfen
-                if (string.IsNullOrWhiteSpace(vorname) ||
-                    string.IsNullOrWhiteSpace(nachname) ||
-                    string.IsNullOrWhiteSpace(klasse) ||
-                    gewaehlteFirmen.Count == 0)
-                {
-                    Console.WriteLine("⚠ Ungültiger Datensatz: Alle Felder müssen gefüllt sein und mindestens eine Firma ausgewählt.");
-                    valid = false;
-                }
-
-                // Doppelte Einträge verhindern
-                if (valid && pdfExtraction.Any(p =>
-                       p.Vorname.Equals(vorname, StringComparison.OrdinalIgnoreCase) &&
-                       p.Nachname.Equals(nachname, StringComparison.OrdinalIgnoreCase) &&
-                       p.Klasse.Equals(klasse, StringComparison.OrdinalIgnoreCase)))
-                {
-                    Console.WriteLine("⚠ Doppelter Eintrag erkannt – wird übersprungen.");
-                    valid = false;
-                }
-
-                // In Liste aufnehmen und PDF verschieben
-                if (valid)
-                {
-                    pdfExtraction.Add(new PdfModel
-                    {
-                        Vorname = vorname,
-                        Nachname = nachname,
-                        Klasse = klasse,
-                        Firmen = gewaehlteFirmen
-                    });
-
-                    string zielDatei = Path.Combine(zielOrdner, Path.GetFileName(pdfDatei));
-                    File.Move(pdfDatei, zielDatei);
-                    Console.WriteLine("→ PDF wurde verschoben nach 'Verarbeitet'.");
-                }
-                else
-                {
-                    Console.WriteLine("→ PDF bleibt im Import-Ordner.");
-                }
+                if (IstCheckboxGecheckt(felder, "cbTargon"))
+                    gewaehlteFirmen.Add(AppConstants.TargonId);
+                if (IstCheckboxGecheckt(felder, "cbSicher"))
+                    gewaehlteFirmen.Add(AppConstants.SicherAGId);
+                if (IstCheckboxGecheckt(felder, "cbHolz"))
+                    gewaehlteFirmen.Add(AppConstants.HolzKGId);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"⚠ Fehler beim Auslesen: {ex.Message}");
+                Console.WriteLine($"⚠ Fehler beim Einlesen: {ex.Message}");
                 Console.WriteLine("→ PDF bleibt im Import-Ordner.");
+                continue;
             }
+
+            // Pflichtfelder prüfen
+            if (string.IsNullOrWhiteSpace(vorname) ||
+                string.IsNullOrWhiteSpace(nachname) ||
+                string.IsNullOrWhiteSpace(klasse) ||
+                gewaehlteFirmen.Count == 0)
+            {
+                Console.WriteLine("⚠ Ungültiger Datensatz: Alle Felder müssen gefüllt sein und mindestens eine Firma ausgewählt.");
+                Console.WriteLine("→ PDF bleibt im Import-Ordner.");
+                continue;
+            }
+
+            // Doppelte Einträge verhindern
+            if (pdfExtraction.Any(p =>
+                   p.Vorname.Equals(vorname, StringComparison.OrdinalIgnoreCase) &&
+                   p.Nachname.Equals(nachname, StringComparison.OrdinalIgnoreCase) &&
+                   p.Klasse.Equals(klasse, StringComparison.OrdinalIgnoreCase)))
+            {
+                Console.WriteLine("⚠ Doppelter Eintrag erkannt – wird übersprungen.");
+                Console.WriteLine("→ PDF bleibt im Import-Ordner.");
+                continue;
+            }
+
+            // In Liste aufnehmen und PDF verschieben
+            pdfExtraction.Add(new PdfModel
+            {
+                Vorname = vorname,
+                Nachname = nachname,
+                Klasse = klasse,
+                Firmen = gewaehlteFirmen
+            });
+
+            string zielDatei = Path.Combine(zielOrdner, Path.GetFileName(pdfDatei));
+            File.Move(pdfDatei, zielDatei);
+            importCount++;
+
+            Console.WriteLine($"✔ Eingelesen: {vorname} {nachname} ({klasse}) – Firmen: {string.Join(", ", gewaehlteFirmen)}");
+            Console.WriteLine("→ PDF wurde verschoben nach 'Verarbeitet'.");
         }
 
-        // Übergabe an DB-Service
         InsertToDatabaseService.InsertPDFToDatabase(pdfExtraction);
+
+        Console.WriteLine($"\n✅ Insgesamt erfolgreich verarbeitet: {importCount} PDF-Datei(en).");
+        Console.WriteLine("Drücken Sie eine Taste zum Beenden...");
+        Console.ReadKey();
     }
 
     static string GetFeldwert(IDictionary<string, PdfFormField> felder, string name)

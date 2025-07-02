@@ -23,7 +23,6 @@ public static class DataBaseCreatorService
     {
         // 1) Verzeichnisse anlegen
         EnsureDirectory(AppConstants.PDFImportOrdner);
-        EnsureDirectory(AppConstants.PDFOutputOrdner);
         EnsureDirectory(AppConstants.CSVOutput);
         EnsureDirectory(AppConstants.DataBasePath);
 
