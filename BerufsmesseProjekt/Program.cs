@@ -8,12 +8,33 @@ namespace BerufsmesseProjekt
         public static void Main(string[] args)
         {
             OnStartup();
+
+            if (args.Length > 0 && args[0].Equals("/n", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine("Paul Temiz, Oliver Schiwek");
+                Console.WriteLine("Drücken Sie eine Taste um fortzufahren");
+                Console.ReadKey();
+                return;
+            }
+
+            if (args.Length > 0 && args[0].Equals("/imp", StringComparison.OrdinalIgnoreCase))
+            {
+                PdfImportService.Import();
+                return;
+            }
+            if (args.Length > 0 && args[0].Equals("/exp", StringComparison.OrdinalIgnoreCase))
+            {
+                CsvExportService.ExportAsCSV();
+                return;
+            }
         }
         public static void OnStartup()
         {
             DataBaseCreatorService.CreateDatabase();
             InsertToDatabaseService.InsertFirmen(Firmen());
             Menue();
+
+           
         }
 
         public static List<FirmenModel> Firmen()
@@ -24,7 +45,8 @@ namespace BerufsmesseProjekt
                    new FirmenModel { Firmenname = "Targon", Branche = "Bank"}};
         }
 
-        public static void Menue()
+        
+public static void Menue()
         {
             string input;
             bool validInput = false;
